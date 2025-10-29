@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["mensaje", "id", "usuario"],
+  "properties": {
+    "mensaje": { "type": "string" },
+    "id": { "type": "string", "minLength": 1 },
+    "usuario": {
+      "type": "object",
+      "required": ["id", "nombre", "email"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "nombre": { "type": "string", "minLength": 2 },
+        "email": { "type": "string", "format": "email" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,350 @@
+{
+  "info": {
+    "name": "Taller API-2 Usuarios - Colección Robustecida",
+    "_postman_id": "b3c3d9f4-6f3a-4c8e-9a0a-2a4e6c8e9b77",
+    "description": "Colección robusta: extracción de resetToken y userId con múltiples rutas, guards en pre-request y logs de depuración. Compatible con PasswordRecoveryRequest y PasswordResetRequest.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1) Obtener Token (client_credentials)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function () { pm.response.to.have.status(200); });",
+              "let j={}; try{ j=pm.response.json(); }catch(e){ j={}; }",
+              "pm.test('Contiene access_token', function(){ pm.expect(j.access_token).to.be.a('string').and.not.empty; });",
+              "pm.collectionVariables.set('adminBearer', j.access_token);",
+              "console.log('adminBearer:', (j.access_token||'').substring(0,12)+'...');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/x-www-form-urlencoded" } ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "client_credentials" },
+            { "key": "client_id", "value": "{{clientId}}" },
+            { "key": "client_secret", "value": "{{clientSecret}}" }
+          ]
+        },
+        "url": {
+          "raw": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+          "host": [ "{{keycloakUrl}}" ],
+          "path": [ "realms", "{{realm}}", "protocol", "openid-connect", "token" ]
+        }
+      }
+    },
+    {
+      "name": "2) Crear Usuario",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const ts = Date.now();",
+              "const emailTemplate = pm.environment.get('testEmail') || 'testuser+{{timestamp}}@example.com';",
+              "const email = emailTemplate.replace('{{timestamp}}', ts);",
+              "pm.collectionVariables.set('userEmail', email);",
+              "pm.collectionVariables.set('userPassword', pm.environment.get('temporalPassword') || 'Temporal#123');",
+              "pm.collectionVariables.set('userNombre', pm.environment.get('nombreUsuario') || 'Juan Prueba');",
+              "console.log('userEmail:', email);"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 201/200', function(){ pm.expect([200,201]).to.include(pm.response.code); });",
+              "let body={}; try{ body=pm.response.json(); }catch(e){ body={}; }",
+              "console.log('Create user response:', body);",
+              "let userId = null;",
+              "try {",
+              "  const candidates = [",
+              "    body?.usuario?.id,",
+              "    body?.data?.id,",
+              "    body?.result?.id,",
+              "    body?.id,",
+              "    body?.usuarioId,",
+              "    body?.userId,",
+              "    (typeof body === 'string' ? body : null) // por si retorna texto con id",
+              "  ];",
+              "  for (let c of candidates) {",
+              "    if (typeof c === 'string' && c.trim() !== '') { userId = c.trim(); break; }",
+              "    if (typeof c === 'number' && !Number.isNaN(c)) { userId = String(c); break; }",
+              "  }",
+              "} catch(e) {}",
+              "pm.collectionVariables.set('userId', userId || '');",
+              "pm.test('userId capturado', function(){ pm.expect(pm.collectionVariables.get('userId')).to.be.a('string').and.not.empty; });",
+              "console.log('userId:', pm.collectionVariables.get('userId'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminBearer}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"{{userNombre}}\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/usuarios",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "usuarios" ]
+        }
+      }
+    },
+    {
+      "name": "3) Forgot Password",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function(){ pm.response.to.have.status(200); });",
+              "let json={}; try{ json=pm.response.json(); }catch(e){ json={}; }",
+              "console.log('Forgot response:', json);",
+              "let token = (typeof json.token==='string' && json.token.trim()!=='') ? json.token.trim() : '';",
+              "if (!token) {",
+              "  const url = (json.resetUrl || json.reset_url || json.url || json.enlace || json.link || json.resetLink || '').toString();",
+              "  console.log('Reset URL candidate:', url);",
+              "  pm.test('Tiene URL de reseteo', function(){ pm.expect(url).to.be.a('string').and.not.empty; });",
+              "  const m = /[?&](token|t|code)=([^&]+)/i.exec(url);",
+              "  if (m && m[2]) token = decodeURIComponent(m[2]);",
+              "}",
+              "pm.collectionVariables.set('resetToken', token || '');",
+              "pm.test('resetToken capturado', function(){ pm.expect(pm.collectionVariables.get('resetToken')).to.be.a('string').and.not.empty; });",
+              "console.log('resetToken:', pm.collectionVariables.get('resetToken'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminBearer}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{userEmail}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/forgot-password",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "auth", "forgot-password" ]
+        },
+        "description": "Body conforme a PasswordRecoveryRequest: {\"email\": \"...\"}"
+      }
+    },
+    {
+      "name": "4) Reset Password",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const token = pm.collectionVariables.get('resetToken');",
+              "console.log('Pre Reset - resetToken:', token);",
+              "if (!token) {",
+              "  postman.setNextRequest(null);",
+              "  throw new Error('No hay resetToken definido. Revisa extracción en Forgot Password.');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "console.log('Reset request body enviado:', pm.request.body?.raw);",
+              "pm.test('Status 200', function(){ pm.response.to.have.status(200); });",
+              "let j={}; try{ j=pm.response.json(); }catch(e){}",
+              "console.log('Reset response:', j);",
+              "pm.test('Mensaje confirma cambio', function(){ pm.expect((j.mensaje||'')).to.match(/actualizada|correctamente|exitosamente/i); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminBearer}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/reset-password",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "auth", "reset-password" ]
+        },
+        "description": "Body conforme a PasswordResetRequest: {\"token\":\"...\",\"newPassword\":\"...\"}"
+      }
+    },
+    {
+      "name": "5) Login con nueva contraseña (si existe)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200/401/400', function(){ pm.expect([200,401,400]).to.include(pm.response.code); });",
+              "if (pm.response.code===200){ let j={}; try{ j=pm.response.json(); }catch(e){}; console.log('Login ok:', j); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{newPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "auth", "login" ]
+        }
+      }
+    },
+    {
+      "name": "6) Listar usuarios (público)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200', function(){ pm.response.to.have.status(200); });",
+              "let j={}; try{ j=pm.response.json(); }catch(e){}; console.log('List users:', j);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/usuarios",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "usuarios" ]
+        }
+      }
+    },
+    {
+      "name": "7) Eliminar usuario",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const id = pm.collectionVariables.get('userId');",
+              "console.log('Pre Delete - userId:', id);",
+              "if (!id) {",
+              "  postman.setNextRequest(null);",
+              "  throw new Error('userId no está definido. Revisa el response de creación en el paso 2.');",
+              "}",
+              "// Ajustar dinámicamente la URL por si alguien la dejó con slash final accidentalmente",
+              "let u = pm.request.url.toString();",
+              "u = u.replace(/\\/{2,}$/,'/');",
+              "if (u.endsWith('/api/usuarios/')) {",
+              "  u = u + encodeURIComponent(id);",
+              "  pm.request.url = u;",
+              "  console.log('URL DELETE corregida a:', u);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 200 o 204', function(){ pm.expect([200,204]).to.include(pm.response.code); });",
+              "console.log('Delete response code:', pm.response.code);",
+              "pm.collectionVariables.set('deletedStatus', pm.response.code);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [ { "key": "Authorization", "value": "Bearer {{adminBearer}}" } ],
+        "url": {
+          "raw": "{{baseUrl}}/api/usuarios/{{userId}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "usuarios", "{{userId}}" ]
+        }
+      }
+    },
+    {
+      "name": "8) Consultar usuario eliminado -> 404",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const id = pm.collectionVariables.get('userId');",
+              "if (!id) { postman.setNextRequest(null); throw new Error('userId no está definido.'); }",
+              "let u = pm.request.url.toString();",
+              "if (u.endsWith('/api/usuarios/')) {",
+              "  u = u + encodeURIComponent(id);",
+              "  pm.request.url = u;",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status 404', function(){ pm.response.to.have.status(404); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{adminBearer}}" } ],
+        "url": {
+          "raw": "{{baseUrl}}/api/usuarios/{{userId}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "usuarios", "{{userId}}" ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "adminBearer", "value": "" },
+    { "key": "userEmail", "value": "" },
+    { "key": "userPassword", "value": "" },
+    { "key": "userNombre", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "resetToken", "value": "" },
+    { "key": "deletedStatus", "value": "" }
+  ]
+}
