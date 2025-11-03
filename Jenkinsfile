@@ -113,25 +113,22 @@ pipeline {
 
         stage('📊 Análisis SonarQube') {
             steps {
-                echo "📊 Análisis de calidad..."
+                echo '📊 Análisis de calidad...'
                 script {
-                    def sonarStatus = sh(
-                            script: """
-                            mvn sonar:sonar \
-                                -Dsonar.host.url=${SONAR_HOST_URL} \
-                                -Dsonar.projectKey=test-automation \
-                                -Dsonar.projectName='Test Automation' \
-                                -Dsonar.sources=src/main/java,src/test/java \
-                                -Dsonar.tests=src/test/java \
-                                -Dsonar.java.binaries=target/classes,target/test-classes
-                        """,
-                            returnStatus: true
-                    )
-
-                    if (sonarStatus == 0) {
-                        echo "✅ Análisis completado: ${SONAR_HOST_URL}/dashboard?id=test-automation"
-                    } else {
-                        echo "⚠️ Análisis de SonarQube falló"
+                    try {
+                        sh """
+                    mvn sonar:sonar \
+                        -Dsonar.host.url=http://sonarqube:9000 \
+                        -Dsonar.login=598c2e3b2c6ab5065c130cd707475f10 \
+                        -Dsonar.projectKey=test-automation \
+                        -Dsonar.projectName="Test Automation" \
+                        -Dsonar.sources=src/main/java,src/test/java \
+                        -Dsonar.tests=src/test/java \
+                        -Dsonar.java.binaries=target/classes,target/test-classes
+                """
+                        echo '✅ Análisis de SonarQube completado'
+                    } catch (Exception e) {
+                        echo '⚠️ Análisis de SonarQube falló'
                     }
                 }
             }
