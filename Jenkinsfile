@@ -119,7 +119,7 @@ pipeline {
                         sh """
                     mvn sonar:sonar \
                         -Dsonar.host.url=http://sonarqube:9000 \
-                        -Dsonar.login=598c2e3b2c6ab5065c130cd707475f10 \
+                        -Dsonar.login=squ_b882f97b9575f12871c79f9965d8b80f032a222a \
                         -Dsonar.projectKey=test-automation \
                         -Dsonar.projectName="Test Automation" \
                         -Dsonar.sources=src/main/java,src/test/java \
