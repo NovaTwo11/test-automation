@@ -122,9 +122,11 @@ pipeline {
                         -Dsonar.login=squ_b882f97b9575f12871c79f9965d8b80f032a222a \
                         -Dsonar.projectKey=test-automation \
                         -Dsonar.projectName="Test Automation" \
-                        -Dsonar.sources=src/main/java,src/test/java \
+                        -Dsonar.sources=src/main/java \
                         -Dsonar.tests=src/test/java \
-                        -Dsonar.java.binaries=target/classes,target/test-classes
+                        -Dsonar.java.binaries=target/classes \
+                        -Dsonar.java.test.binaries=target/test-classes \
+                        -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
                 """
                         echo '✅ Análisis de SonarQube completado'
                     } catch (Exception e) {
