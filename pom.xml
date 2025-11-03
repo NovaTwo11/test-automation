@@ -23,6 +23,23 @@
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- SonarQube properties -->
+        <sonar.organization>uniquindio</sonar.organization>
+        <sonar.host.url>http://sonarqube:9000</sonar.host.url>
+        <sonar.projectKey>test-automation</sonar.projectKey>
+        <sonar.projectName>Test Automation</sonar.projectName>
+        <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+        <sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+        <sonar.junit.reportPaths>${project.build.directory}/surefire-reports</sonar.junit.reportPaths>
+        <sonar.sources>src/test/java</sonar.sources>
+        <sonar.tests>src/test/java</sonar.tests>
+        <sonar.language>java</sonar.language>
+        <sonar.sourceEncoding>UTF-8</sonar.sourceEncoding>
+
+        <!-- JaCoCo properties -->
+        <jacoco.version>0.8.11</jacoco.version>
     </properties>
 
     <dependencyManagement>
@@ -226,7 +243,6 @@
             </exclusions>
         </dependency>
 
-
         <!-- AssertJ para aserciones expresivas (opcional pero recomendado) -->
         <dependency>
             <groupId>io.cucumber</groupId>
@@ -234,7 +250,7 @@
             <version>${cucumber.version}</version>
             <scope>test</scope>
         </dependency>
-        
+
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
@@ -279,16 +295,57 @@
                     </includes>
                     <systemPropertyVariables>
                         <cucumber.publish.enabled>false</cucumber.publish.enabled>
-                        <!-- Puedes sobreescribir aquí si no quieres exportar env vars -->
-                        <!--
-                        <API_BASE_URL>http://localhost:8080</API_BASE_URL>
-                        <KEYCLOAK_BASE_URL>http://localhost:8082</KEYCLOAK_BASE_URL>
-                        <KEYCLOAK_REALM>taller</KEYCLOAK_REALM>
-                        <API_CLIENT_ID>taller-api</API_CLIENT_ID>
-                        <API_CLIENT_SECRET>...</API_CLIENT_SECRET>
-                        -->
                     </systemPropertyVariables>
                 </configuration>
+            </plugin>
+
+            <!-- JaCoCo para cobertura de código -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-check</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>PACKAGE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.0</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- SonarQube Scanner -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>3.10.0.2594</version>
             </plugin>
 
             <!-- Allure Maven -->

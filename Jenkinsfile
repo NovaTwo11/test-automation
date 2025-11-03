@@ -11,140 +11,155 @@ pipeline {
         API_URL = 'http://host.docker.internal:8080'
         SONAR_HOST_URL = 'http://sonarqube:9000'
 
-        // Credenciales de SonarQube
-        SONAR_TOKEN = credentials('sonar-token')
-
         // Configuración de Maven
         MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
+
+        // Configuración de proyecto
+        PROJECT_NAME = 'test-automation'
+        SONAR_PROJECT_KEY = 'test-automation'
     }
 
     stages {
-        stage('Checkout') {
+        stage('🔍 Información del Build') {
             steps {
-                echo '📥 Clonando repositorio...'
+                script {
+                    echo "================================================"
+                    echo "🚀 Iniciando Pipeline de Test Automation"
+                    echo "================================================"
+                    echo "Job: ${env.JOB_NAME}"
+                    echo "Build: #${env.BUILD_NUMBER}"
+                    echo "Branch: ${env.GIT_BRANCH ?: 'N/A'}"
+                    echo "Workspace: ${env.WORKSPACE}"
+                    echo "================================================"
+                }
+            }
+        }
+
+        stage('📥 Checkout') {
+            steps {
+                echo '📥 Clonando repositorio test-automation...'
                 checkout scm
-            }
-        }
 
-        stage('Build API') {
-            steps {
-                echo '🔨 Compilando taller-api-2...'
-                dir('taller-api-2') {
-                    sh 'mvn clean package -DskipTests'
-                }
-            }
-        }
-
-        stage('Unit Tests API') {
-            steps {
-                echo '🧪 Ejecutando pruebas unitarias de la API...'
-                dir('taller-api-2') {
-                    sh 'mvn test'
-                }
-            }
-            post {
-                always {
-                    junit 'taller-api-2/target/surefire-reports/*.xml'
-                }
-            }
-        }
-
-        stage('SonarQube Analysis - API') {
-            steps {
-                echo '📊 Analizando calidad del código de la API...'
-                dir('taller-api-2') {
-                    withSonarQubeEnv('SonarQube') {
-                        sh """
-                            mvn sonar:sonar \
-                              -Dsonar.projectKey=taller-api-2 \
-                              -Dsonar.projectName='Taller API 2' \
-                              -Dsonar.host.url=${SONAR_HOST_URL} \
-                              -Dsonar.login=${SONAR_TOKEN}
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Quality Gate - API') {
-            steps {
-                echo '🚦 Verificando Quality Gate...'
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: false
-                }
-            }
-        }
-
-        stage('Start API') {
-            steps {
-                echo '🚀 Iniciando API en background...'
-                dir('taller-api-2') {
+                script {
+                    // Mostrar información del commit
                     sh '''
-                        nohup java -jar target/*.jar > api.log 2>&1 &
-                        echo $! > api.pid
-                        
-                        echo "Esperando a que la API esté lista..."
-                        for i in {1..30}; do
-                            if curl -f ${API_URL}/api/usuarios 2>/dev/null; then
-                                echo "✅ API está lista"
-                                exit 0
-                            fi
-                            echo "Intento $i/30..."
-                            sleep 5
-                        done
-                        
-                        echo "❌ API no respondió a tiempo"
-                        exit 1
+                        echo "Último commit:"
+                        git log -1 --pretty=format:"%h - %an, %ar : %s"
                     '''
                 }
             }
         }
 
-        stage('Automation Tests') {
+        stage('🔍 Verificar API') {
             steps {
-                echo '🤖 Ejecutando pruebas de automatización...'
-                dir('test-automation') {
-                    sh 'mvn clean test -Dcucumber.publish.enabled=false'
+                echo '🔍 Verificando que la API esté disponible...'
+                script {
+                    def apiAvailable = false
+                    def maxRetries = 5
+                    def retryCount = 0
+
+                    while (!apiAvailable && retryCount < maxRetries) {
+                        try {
+                            sh "curl -f ${API_URL}/api/usuarios"
+                            apiAvailable = true
+                            echo "✅ API está disponible"
+                        } catch (Exception e) {
+                            retryCount++
+                            if (retryCount < maxRetries) {
+                                echo "⏳ Intento ${retryCount}/${maxRetries} - Esperando 10 segundos..."
+                                sleep(10)
+                            } else {
+                                error "❌ API no está disponible después de ${maxRetries} intentos"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('📦 Compilar Proyecto') {
+            steps {
+                echo '📦 Compilando proyecto test-automation...'
+                sh 'mvn clean compile'
+            }
+        }
+
+        stage('🧪 Ejecutar Tests') {
+            steps {
+                echo '🧪 Ejecutando pruebas de automatización...'
+                script {
+                    try {
+                        sh 'mvn test -Dcucumber.publish.enabled=false'
+                    } catch (Exception e) {
+                        echo "⚠️ Algunos tests fallaron, pero continuamos para generar reportes"
+                        currentBuild.result = 'UNSTABLE'
+                    }
                 }
             }
             post {
                 always {
-                    dir('test-automation') {
-                        // Publicar resultados JUnit
-                        junit 'target/surefire-reports/*.xml'
+                    // Publicar resultados JUnit
+                    junit allowEmptyResults: true,
+                            testResults: 'target/surefire-reports/*.xml'
 
-                        // Publicar resultados Cucumber
-                        cucumber buildStatus: 'UNSTABLE',
-                                reportTitle: 'Cucumber Report',
-                                fileIncludePattern: '**/*.json',
-                                jsonReportDirectory: 'target'
-                    }
+                    // Publicar resultados Cucumber
+                    cucumber buildStatus: 'UNSTABLE',
+                            reportTitle: 'Cucumber Report',
+                            fileIncludePattern: '**/*.json',
+                            jsonReportDirectory: 'target',
+                            sortingMethod: 'ALPHABETICAL'
                 }
             }
         }
 
-        stage('SonarQube Analysis - Tests') {
+        stage('📊 Análisis SonarQube') {
             steps {
-                echo '📊 Analizando calidad del código de tests...'
-                dir('test-automation') {
-                    withSonarQubeEnv('SonarQube') {
-                        sh """
-                            mvn sonar:sonar \
-                              -Dsonar.projectKey=test-automation \
-                              -Dsonar.projectName='Test Automation' \
-                              -Dsonar.host.url=${SONAR_HOST_URL} \
-                              -Dsonar.login=${SONAR_TOKEN}
-                        """
+                echo '📊 Analizando calidad del código con SonarQube...'
+                script {
+                    try {
+                        withSonarQubeEnv('SonarQube') {
+                            sh """
+                                mvn sonar:sonar \
+                                  -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                  -Dsonar.projectName='${PROJECT_NAME}' \
+                                  -Dsonar.host.url=${SONAR_HOST_URL}
+                            """
+                        }
+                    } catch (Exception e) {
+                        echo "⚠️ Error en análisis de SonarQube: ${e.message}"
+                        currentBuild.result = 'UNSTABLE'
                     }
                 }
             }
         }
 
-        stage('Allure Report') {
+        stage('🚦 Quality Gate') {
+            steps {
+                echo '🚦 Verificando Quality Gate de SonarQube...'
+                script {
+                    try {
+                        timeout(time: 5, unit: 'MINUTES') {
+                            def qg = waitForQualityGate()
+                            if (qg.status != 'OK') {
+                                echo "⚠️ Quality Gate falló: ${qg.status}"
+                                currentBuild.result = 'UNSTABLE'
+                            } else {
+                                echo "✅ Quality Gate aprobado"
+                            }
+                        }
+                    } catch (Exception e) {
+                        echo "⚠️ Error verificando Quality Gate: ${e.message}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+        }
+
+        stage('📈 Generar Reporte Allure') {
             steps {
                 echo '📈 Generando reporte Allure...'
-                dir('test-automation') {
-                    script {
+                script {
+                    try {
                         allure([
                                 includeProperties: false,
                                 jdk: '',
@@ -152,7 +167,35 @@ pipeline {
                                 reportBuildPolicy: 'ALWAYS',
                                 results: [[path: 'target/allure-results']]
                         ])
+                        echo "✅ Reporte Allure generado: ${env.BUILD_URL}allure"
+                    } catch (Exception e) {
+                        echo "⚠️ Error generando reporte Allure: ${e.message}"
                     }
+                }
+            }
+        }
+
+        stage('📋 Resumen de Resultados') {
+            steps {
+                script {
+                    echo "================================================"
+                    echo "📋 RESUMEN DE RESULTADOS"
+                    echo "================================================"
+
+                    // Leer resultados de tests
+                    def testResults = junit testResults: 'target/surefire-reports/*.xml'
+
+                    echo "Total de tests: ${testResults.totalCount}"
+                    echo "✅ Exitosos: ${testResults.passCount}"
+                    echo "❌ Fallidos: ${testResults.failCount}"
+                    echo "⏭️  Omitidos: ${testResults.skipCount}"
+                    echo ""
+                    echo "🔗 Reportes disponibles:"
+                    echo "   - JUnit: ${env.BUILD_URL}testReport"
+                    echo "   - Cucumber: ${env.BUILD_URL}cucumber-html-reports"
+                    echo "   - Allure: ${env.BUILD_URL}allure"
+                    echo "   - SonarQube: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
+                    echo "================================================"
                 }
             }
         }
@@ -161,48 +204,73 @@ pipeline {
     post {
         always {
             echo '🧹 Limpiando recursos...'
-            script {
-                // Detener API
-                sh '''
-                    if [ -f taller-api-2/api.pid ]; then
-                        kill $(cat taller-api-2/api.pid) || true
-                        rm taller-api-2/api.pid
-                    fi
-                '''
 
-                // Limpiar workspace si es necesario
-                // cleanWs()
+            // Archivar logs y reportes
+            archiveArtifacts artifacts: 'target/surefire-reports/**/*',
+                    allowEmptyArchive: true
+
+            archiveArtifacts artifacts: 'target/allure-results/**/*',
+                    allowEmptyArchive: true
+
+            // Limpiar workspace si es necesario (comentado por defecto)
+            // cleanWs()
+        }
+
+        success {
+            script {
+                echo '================================================'
+                echo '✅ PIPELINE EJECUTADO EXITOSAMENTE'
+                echo '================================================'
+
+                // Enviar notificación por email (opcional)
+                // emailext(
+                //     subject: "✅ Build Exitoso: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                //     body: """
+                //         <h2>Build Exitoso</h2>
+                //         <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                //         <p><strong>Build:</strong> #${env.BUILD_NUMBER}</p>
+                //         <p><strong>Duración:</strong> ${currentBuild.durationString}</p>
+                //         <p><strong>Reportes:</strong></p>
+                //         <ul>
+                //             <li><a href="${env.BUILD_URL}allure">Allure Report</a></li>
+                //             <li><a href="${env.BUILD_URL}cucumber-html-reports">Cucumber Report</a></li>
+                //             <li><a href="${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}">SonarQube Dashboard</a></li>
+                //         </ul>
+                //     """,
+                //     to: 'equipo@example.com',
+                //     mimeType: 'text/html'
+                // )
             }
         }
-        success {
-            echo '✅ Pipeline ejecutado exitosamente'
-            emailext(
-                    subject: "✅ Build Exitoso: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                    body: """
-                    <h2>Build Exitoso</h2>
-                    <p><strong>Job:</strong> ${env.JOB_NAME}</p>
-                    <p><strong>Build:</strong> #${env.BUILD_NUMBER}</p>
-                    <p><strong>URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                    <p><strong>Allure Report:</strong> <a href="${env.BUILD_URL}allure">Ver Reporte</a></p>
-                """,
-                    to: 'equipo@example.com',
-                    mimeType: 'text/html'
-            )
-        }
+
         failure {
-            echo '❌ Pipeline falló'
-            emailext(
-                    subject: "❌ Build Fallido: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                    body: """
-                    <h2>Build Fallido</h2>
-                    <p><strong>Job:</strong> ${env.JOB_NAME}</p>
-                    <p><strong>Build:</strong> #${env.BUILD_NUMBER}</p>
-                    <p><strong>URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                    <p><strong>Console:</strong> <a href="${env.BUILD_URL}console">Ver Console</a></p>
-                """,
-                    to: 'equipo@example.com',
-                    mimeType: 'text/html'
-            )
+            script {
+                echo '================================================'
+                echo '❌ PIPELINE FALLÓ'
+                echo '================================================'
+
+                // Enviar notificación por email (opcional)
+                // emailext(
+                //     subject: "❌ Build Fallido: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                //     body: """
+                //         <h2>Build Fallido</h2>
+                //         <p><strong>Job:</strong> ${env.JOB_NAME}</p>
+                //         <p><strong>Build:</strong> #${env.BUILD_NUMBER}</p>
+                //         <p><strong>Duración:</strong> ${currentBuild.durationString}</p>
+                //         <p><strong>Console:</strong> <a href="${env.BUILD_URL}console">Ver Console</a></p>
+                //     """,
+                //     to: 'equipo@example.com',
+                //     mimeType: 'text/html'
+                // )
+            }
+        }
+
+        unstable {
+            script {
+                echo '================================================'
+                echo '⚠️  PIPELINE INESTABLE (algunos tests fallaron)'
+                echo '================================================'
+            }
         }
     }
 }
