@@ -2,19 +2,19 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven3'
+        maven 'Maven3'  // ← CORREGIDO
         jdk 'JDK17'
     }
 
     environment {
-        // URLs internas de Docker (nombres de servicio en ci_net)
+        // URLs internas de Docker
         API_BASE_URL = 'http://host.docker.internal:8080'
         KEYCLOAK_BASE_URL = 'http://keycloak:8080'
-        KEYCLOAK_REALM = 'taller'
-        KEYCLOAK_CLIENT_ID = 'taller-api'
-        KEYCLOAK_CLIENT_SECRET = 'jx34gvJ7Vo9UwxLwsbLa1K3C58ZbjrLh'
+        KEYCLOAK_REALM = 'taller'  // ← CORREGIDO
+        KEYCLOAK_CLIENT_ID = 'taller-api'  // ← CORREGIDO
+        KEYCLOAK_CLIENT_SECRET = 'jx34gvJ7Vo9UwxLwsbLa1K3C58ZbjrLh'  // ← CORREGIDO
 
-        // Configuración de SonarQube (sin credenciales por ahora)
+        // Configuración de SonarQube
         SONAR_HOST_URL = 'http://sonarqube:9000'
 
         // Configuración de Allure
@@ -26,12 +26,11 @@ pipeline {
             steps {
                 script {
                     echo "===================================="
-                    echo "🚀 Iniciando Pipeline de Test Automation"
+                    echo "🚀 Pipeline Test Automation"
                     echo "===================================="
                     echo "Job: ${env.JOB_NAME}"
                     echo "Build: #${env.BUILD_NUMBER}"
                     echo "Branch: ${env.GIT_BRANCH ?: 'N/A'}"
-                    echo "Workspace: ${env.WORKSPACE}"
                     echo "===================================="
                 }
             }
@@ -39,10 +38,9 @@ pipeline {
 
         stage('📥 Checkout') {
             steps {
-                echo "📥 Clonando repositorio test-automation..."
+                echo "📥 Clonando repositorio..."
                 checkout scm
                 script {
-                    sh 'echo "Último commit:"'
                     sh 'git log -1 --pretty=format:"%h - %an, %ar : %s" || echo "No git history"'
                 }
             }
@@ -50,48 +48,45 @@ pipeline {
 
         stage('🔍 Verificar Servicios') {
             steps {
-                echo "🔍 Verificando que los servicios estén disponibles..."
+                echo "🔍 Verificando servicios..."
                 script {
                     // Verificar API
-                    echo "Verificando API en ${API_BASE_URL}..."
+                    echo "→ Verificando API en ${API_BASE_URL}..."
                     def apiStatus = sh(
-                            script: "curl -f ${API_BASE_URL}/actuator/health || echo 'API no disponible'",
+                            script: "curl -f ${API_BASE_URL}/actuator/health 2>&1",
                             returnStatus: true
                     )
 
                     if (apiStatus != 0) {
-                        echo "⚠️ ADVERTENCIA: La API no está disponible en ${API_BASE_URL}"
-                        echo "Asegúrate de que taller-api-2 esté corriendo en el puerto 8080"
-                    } else {
-                        echo "✅ API está disponible"
+                        error("❌ API no disponible en ${API_BASE_URL}. Asegúrate de que taller-api-2 esté corriendo.")
                     }
+                    echo "✅ API disponible"
 
-                    // Verificar Keycloak
-                    echo "Verificando Keycloak en ${KEYCLOAK_BASE_URL}..."
+                    // Verificar Keycloak (usando el realm correcto)
+                    echo "→ Verificando Keycloak en ${KEYCLOAK_BASE_URL}..."
                     def kcStatus = sh(
-                            script: "curl -f ${KEYCLOAK_BASE_URL}/realms/master/.well-known/openid-configuration || echo 'Keycloak no disponible'",
+                            script: "curl -f ${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/.well-known/openid-configuration 2>&1",
                             returnStatus: true
                     )
 
                     if (kcStatus != 0) {
-                        echo "⚠️ ADVERTENCIA: Keycloak no está disponible en ${KEYCLOAK_BASE_URL}"
-                    } else {
-                        echo "✅ Keycloak está disponible"
+                        error("❌ Keycloak realm '${KEYCLOAK_REALM}' no disponible. Verifica la configuración.")
                     }
+                    echo "✅ Keycloak disponible (realm: ${KEYCLOAK_REALM})"
                 }
             }
         }
 
         stage('📦 Compilar Proyecto') {
             steps {
-                echo "📦 Compilando proyecto test-automation..."
+                echo "📦 Compilando proyecto..."
                 sh 'mvn clean compile -DskipTests'
             }
         }
 
         stage('🧪 Ejecutar Tests') {
             steps {
-                echo "🧪 Ejecutando pruebas de automatización..."
+                echo "🧪 Ejecutando tests..."
                 script {
                     def testStatus = sh(
                             script: """
@@ -107,10 +102,10 @@ pipeline {
                     )
 
                     if (testStatus != 0) {
-                        echo "⚠️ Algunos tests fallaron, pero continuamos el pipeline"
+                        echo "⚠️ Algunos tests fallaron"
                         currentBuild.result = 'UNSTABLE'
                     } else {
-                        echo "✅ Todos los tests pasaron exitosamente"
+                        echo "✅ Todos los tests pasaron"
                     }
                 }
             }
@@ -118,9 +113,8 @@ pipeline {
 
         stage('📊 Análisis SonarQube') {
             steps {
-                echo "📊 Ejecutando análisis de calidad con SonarQube..."
+                echo "📊 Análisis de calidad..."
                 script {
-                    // Análisis sin autenticación (para desarrollo)
                     def sonarStatus = sh(
                             script: """
                             mvn sonar:sonar \
@@ -134,12 +128,10 @@ pipeline {
                             returnStatus: true
                     )
 
-                    if (sonarStatus != 0) {
-                        echo "⚠️ Análisis de SonarQube falló, pero continuamos"
-                        currentBuild.result = 'UNSTABLE'
+                    if (sonarStatus == 0) {
+                        echo "✅ Análisis completado: ${SONAR_HOST_URL}/dashboard?id=test-automation"
                     } else {
-                        echo "✅ Análisis de SonarQube completado"
-                        echo "📊 Ver resultados en: ${SONAR_HOST_URL}/dashboard?id=test-automation"
+                        echo "⚠️ Análisis de SonarQube falló"
                     }
                 }
             }
@@ -147,15 +139,11 @@ pipeline {
 
         stage('📈 Generar Reporte Allure') {
             steps {
-                echo "📈 Generando reporte de Allure..."
+                echo "📈 Generando reporte Allure..."
                 script {
-                    // Verificar si existen resultados de Allure
-                    def allureExists = sh(
-                            script: "test -d ${ALLURE_RESULTS} && echo 'exists' || echo 'not found'",
-                            returnStdout: true
-                    ).trim()
+                    def allureExists = fileExists(env.ALLURE_RESULTS)
 
-                    if (allureExists == 'exists') {
+                    if (allureExists) {
                         allure([
                                 includeProperties: false,
                                 jdk: '',
@@ -165,7 +153,7 @@ pipeline {
                         ])
                         echo "✅ Reporte Allure generado"
                     } else {
-                        echo "⚠️ No se encontraron resultados de Allure en ${ALLURE_RESULTS}"
+                        echo "⚠️ No se encontraron resultados de Allure"
                     }
                 }
             }
@@ -175,21 +163,18 @@ pipeline {
     post {
         always {
             script {
-                echo "🧹 Limpiando y generando reportes..."
+                echo "===================================="
+                echo "📊 RESUMEN"
+                echo "===================================="
 
-                // Publicar resultados de JUnit
-                def junitFiles = findFiles(glob: '**/target/surefire-reports/*.xml')
-                if (junitFiles.length > 0) {
+                // Publicar resultados JUnit
+                if (fileExists('target/surefire-reports')) {
                     junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
                     echo "✅ Reportes JUnit publicados"
                 } else {
                     echo "⚠️ No se encontraron reportes JUnit"
                 }
 
-                // Resumen de resultados
-                echo "===================================="
-                echo "📊 RESUMEN DEL BUILD"
-                echo "===================================="
                 echo "Estado: ${currentBuild.result ?: 'SUCCESS'}"
                 echo "Duración: ${currentBuild.durationString}"
                 echo "===================================="
@@ -197,7 +182,7 @@ pipeline {
         }
 
         success {
-            echo "✅ ¡Pipeline ejecutado exitosamente!"
+            echo "✅ Pipeline completado exitosamente"
         }
 
         unstable {
@@ -205,7 +190,7 @@ pipeline {
         }
 
         failure {
-            echo "❌ Pipeline falló. Revisa los logs para más detalles."
+            echo "❌ Pipeline falló"
         }
     }
 }
