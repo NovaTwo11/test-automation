@@ -10,9 +10,9 @@ pipeline {
         // URLs internas de Docker
         API_BASE_URL = 'http://host.docker.internal:8080'
         KEYCLOAK_BASE_URL = 'http://keycloak:8080'
-        KEYCLOAK_REALM = 'taller'  // ← CORREGIDO
-        KEYCLOAK_CLIENT_ID = 'taller-api'  // ← CORREGIDO
-        KEYCLOAK_CLIENT_SECRET = 'jx34gvJ7Vo9UwxLwsbLa1K3C58ZbjrLh'  // ← CORREGIDO
+        KEYCLOAK_REALM = 'taller'
+        KEYCLOAK_CLIENT_ID = 'taller-api'
+        KEYCLOAK_CLIENT_SECRET = 'jx34gvJ7Vo9UwxLwsbLa1K3C58ZbjrLh'
 
         // Configuración de SonarQube
         SONAR_HOST_URL = 'http://sonarqube:9000'

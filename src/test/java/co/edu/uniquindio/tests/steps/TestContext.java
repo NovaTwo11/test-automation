@@ -7,4 +7,5 @@ public class TestContext {
     public UsersData.User user;
     public String createdUserId;
     public Response lastResponse;
+    public int initialMetricCount;
 }

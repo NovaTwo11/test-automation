@@ -10,6 +10,10 @@ public final class TestConfig {
     public static final String KEYCLOAK_BASE_URL = getEnvOrProp("KEYCLOAK_BASE_URL", "keycloakUri",       "http://localhost:8082");
     public static final String KEYCLOAK_REALM    = getEnvOrProp("KEYCLOAK_REALM",    "keycloakRealm",     "taller");
 
+    // Endpoints de Observabilidad
+    public static final String PROMETHEUS_BASE_URL = getEnvOrProp("PROMETHEUS_BASE_URL", "prometheusUri", "http://localhost:9090");
+    public static final String LOKI_BASE_URL       = getEnvOrProp("LOKI_BASE_URL",       "lokiUri",         "http://localhost:3100");
+
     // Clientes (admin vs. api)
     public static final String ADMIN_CLIENT_ID     = getEnvOrProp("KC_ADMIN_CLIENT_ID",     "kc.admin.clientId",     "taller-api-admin");
     public static final String ADMIN_CLIENT_SECRET = getEnvOrProp("KC_ADMIN_CLIENT_SECRET", "kc.admin.clientSecret", "g1IP83yywb0qGcpP2RJ93wKXTcK4CuXH");
