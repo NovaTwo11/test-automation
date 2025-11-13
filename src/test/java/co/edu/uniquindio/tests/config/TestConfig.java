@@ -1,57 +1,111 @@
 package co.edu.uniquindio.tests.config;
 
-import io.restassured.RestAssured;
-import io.qameta.allure.restassured.AllureRestAssured;
+import lombok.Getter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
 
-public final class TestConfig {
+@Getter
+public class TestConfig {
 
-    // Base URIs (puedes sobreescribir por env vars o -D)
-    public static final String API_BASE_URL      = getEnvOrProp("API_BASE_URL",      "apiBaseUri",        "http://localhost:8080");
-    public static final String KEYCLOAK_BASE_URL = getEnvOrProp("KEYCLOAK_BASE_URL", "keycloakUri",       "http://localhost:8082");
-    public static final String KEYCLOAK_REALM    = getEnvOrProp("KEYCLOAK_REALM",    "keycloakRealm",     "taller");
+    private static TestConfig instance;
+    private final Properties properties;
 
-    // Endpoints de Observabilidad
-    public static final String PROMETHEUS_BASE_URL = getEnvOrProp("PROMETHEUS_BASE_URL", "prometheusUri", "http://localhost:9090");
-    public static final String LOKI_BASE_URL       = getEnvOrProp("LOKI_BASE_URL",       "lokiUri",         "http://localhost:3100");
+    private final String apiBaseUrl;
+    private final String keycloakUrl;
+    private final String keycloakRealm;
+    private final String keycloakClientId;
+    private final String keycloakClientSecret;
+    private final String adminUsername;
+    private final String adminPassword;
 
-    // Clientes (admin vs. api)
-    public static final String ADMIN_CLIENT_ID     = getEnvOrProp("KC_ADMIN_CLIENT_ID",     "kc.admin.clientId",     "taller-api-admin");
-    public static final String ADMIN_CLIENT_SECRET = getEnvOrProp("KC_ADMIN_CLIENT_SECRET", "kc.admin.clientSecret", "g1IP83yywb0qGcpP2RJ93wKXTcK4CuXH");
-
-    public static final String API_CLIENT_ID     = getEnvOrProp("API_CLIENT_ID",     "api.clientId",     "taller-api");
-    public static final String API_CLIENT_SECRET = getEnvOrProp("API_CLIENT_SECRET", "api.clientSecret", "jx34gvJ7Vo9UwxLwsbLa1K3C58ZbjrLh");
-
-    // Alternativa password grant
-    public static final String API_ADMIN_USERNAME = getEnvOrProp("API_ADMIN_USERNAME", "api.admin.username", "");
-    public static final String API_ADMIN_PASSWORD = getEnvOrProp("API_ADMIN_PASSWORD", "api.admin.password", "");
-
-    // Maildev para futuros tests
-    public static final String MAILDEV_BASE = getEnvOrProp("MAILDEV_BASE_URL", "maildevBaseUri", "http://localhost:1080");
-
-    public static final int TIMEOUT_MS = Integer.parseInt(getEnvOrProp("TEST_TIMEOUT_MS", "test.timeout.ms", "15000"));
-
-    private TestConfig() {}
-
-    public static void configureRestAssured() {
-        RestAssured.baseURI = API_BASE_URL;
-        RestAssured.useRelaxedHTTPSValidation();
-
-        // Allure – captura request/response sin más configuración
-        RestAssured.filters(new AllureRestAssured());
-
-        // Log automático cuando falle una validación
-        RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
+    private TestConfig() {
+        properties = new Properties();
+        loadProperties();
+        this.apiBaseUrl = getProperty("api.base.url", "http://localhost:8080");
+        this.keycloakUrl = getProperty("keycloak.url", "http://localhost:8082");
+        this.keycloakRealm = getProperty("keycloak.realm", "taller");
+        this.keycloakClientId = getProperty("keycloak.client.id", "taller-api");
+        this.keycloakClientSecret = getProperty("keycloak.client.secret", "jx34gvJ7Vo9UwxLwsbLa1K3C58ZbjrLh");
+        this.adminUsername = getProperty("admin.username", "admin");
+        this.adminPassword = getProperty("admin.password", "admin123");
     }
 
-    public static String tokenEndpoint() {
-        return KEYCLOAK_BASE_URL + "/realms/" + KEYCLOAK_REALM + "/protocol/openid-connect/token";
+    public static TestConfig getInstance() {
+        if (instance == null) {
+            synchronized (TestConfig.class) {
+                if (instance == null) {
+                    instance = new TestConfig();
+                }
+            }
+        }
+        return instance;
     }
 
-    private static String getEnvOrProp(String envKey, String propKey, String def) {
-        String v = System.getenv(envKey);
-        if (v != null && !v.isBlank()) return v;
-        v = System.getProperty(propKey);
-        if (v != null && !v.isBlank()) return v;
-        return def;
+    private void loadProperties() {
+        try (InputStream input = getClass().getClassLoader()
+                .getResourceAsStream("test.properties")) {
+            if (input != null) {
+                properties.load(input);
+            }
+        } catch (IOException e) {
+            System.err.println("No se pudo cargar test.properties");
+        }
+    }
+
+    private String getProperty(String key, String defaultValue) {
+        String envValue = System.getenv(key.toUpperCase().replace(".", "_"));
+        if (envValue != null && !envValue.isEmpty()) {
+            return envValue;
+        }
+
+        String sysValue = System.getProperty(key);
+        if (sysValue != null && !sysValue.isEmpty()) {
+            return sysValue;
+        }
+
+        return properties.getProperty(key, defaultValue);
+    }
+
+    /** URL completa del endpoint /token de Keycloak */
+    public String getKeycloakTokenUrl() {
+        return String.format("%s/realms/%s/protocol/openid-connect/token",
+                keycloakUrl, keycloakRealm);
+    }
+
+    /** URL completa del endpoint /userinfo de Keycloak */
+    public String getKeycloakUserInfoUrl() {
+        return String.format("%s/realms/%s/protocol/openid-connect/userinfo",
+                keycloakUrl, keycloakRealm);
+    }
+
+    /** (Opcional) URL del endpoint /logout — útil para futuras pruebas */
+    public String getKeycloakLogoutUrl() {
+        return String.format("%s/realms/%s/protocol/openid-connect/logout",
+                keycloakUrl, keycloakRealm);
+    }
+
+    // -------------------------
+    // 🔹 ENDPOINTS DE LA API
+    // -------------------------
+
+    public String getUsersEndpoint() {
+        return apiBaseUrl + "/api/usuarios";
+    }
+
+    public String getProfilesEndpoint() {
+        return apiBaseUrl + "/api/perfiles";
+    }
+
+    public String getPasswordEndpoint() {
+        return apiBaseUrl + "/api/usuarios/password";
+    }
+
+    public String getHealthEndpoint() {
+        return apiBaseUrl + "/actuator/health";
+    }
+
+    public String getMetricsEndpoint() {
+        return apiBaseUrl + "/actuator/prometheus";
     }
 }

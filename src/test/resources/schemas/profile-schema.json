@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["userId", "apodo"],
+  "properties": {
+    "userId": {
+      "type": "string"
+    },
+    "apodo": {
+      "type": "string"
+    },
+    "biografia": {
+      "type": "string"
+    },
+    "paginaPersonal": {
+      "type": "string"
+    },
+    "informacionPublica": {
+      "type": "boolean"
+    },
+    "redesSociales": {
+      "type": "object"
+    }
+  }
+}

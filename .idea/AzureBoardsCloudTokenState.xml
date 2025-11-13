@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AzureBoardsCloudTokenState">
+    <option name="a">
+      <map>
+        <entry key="collection.json">
+          <value>
+            <map />
+          </value>
+        </entry>
+        <entry key="test-automation">
+          <value>
+            <map />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

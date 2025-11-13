@@ -10,13 +10,16 @@ import static io.cucumber.junit.platform.engine.Constants.*;
 @Suite
 @IncludeEngines("cucumber")
 @SelectClasspathResource("features")
-@ConfigurationParameter(
-        key   = PLUGIN_PROPERTY_NAME,
-        value = "pretty, summary, json:target/cucumber.json, html:target/cucumber-report.html, io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm")
-@ConfigurationParameter(
-        key   = GLUE_PROPERTY_NAME,
+@ConfigurationParameter(key = PLUGIN_PROPERTY_NAME,
+        value = "pretty, " +
+                "html:target/cucumber-reports/cucumber.html, " +
+                "json:target/cucumber-reports/cucumber.json, " +
+                "junit:target/cucumber-reports/cucumber.xml")
+@ConfigurationParameter(key = GLUE_PROPERTY_NAME,
         value = "co.edu.uniquindio.tests.steps,co.edu.uniquindio.tests.hooks")
-@ConfigurationParameter(
-        key   = SNIPPET_TYPE_PROPERTY_NAME,
-        value = "camelcase")
-public class CucumberTestRunner { }
+@ConfigurationParameter(key = FEATURES_PROPERTY_NAME,
+        value = "src/test/resources/features")
+@ConfigurationParameter(key = FILTER_TAGS_PROPERTY_NAME,
+        value = "not @Ignore")
+public class CucumberTestRunner {
+}
