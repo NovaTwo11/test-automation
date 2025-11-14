@@ -51,16 +51,14 @@ pipeline {
 
                     echo "Probando Keycloak token URL: ${tokenUrl}"
 
+                    // Construimos el body del curl; sólo añadimos client_secret si está definido/no vacío
+                    def curlBody = "-d 'grant_type=password' -d 'client_id=${KEYCLOAK_CLIENT_ID}' -d 'username=${ADMIN_USERNAME}' -d 'password=${ADMIN_PASSWORD}'"
+                    if (env.KEYCLOAK_CLIENT_SECRET?.trim()) {
+                        curlBody += " -d 'client_secret=${env.KEYCLOAK_CLIENT_SECRET}'"
+                    }
+
                     def token = sh(
-                            script: """
-                          curl -s -X POST ${tokenUrl} \
-                            -H 'Content-Type: application/x-www-form-urlencoded' \
-                            -d 'grant_type=password' \
-                            -d 'client_id=${KEYCLOAK_CLIENT_ID}' \
-                            -d 'client_secret=${KEYCLOAK_CLIENT_SECRET}' \
-                            -d 'username=${ADMIN_USERNAME}' \
-                            -d 'password=${ADMIN_PASSWORD}'
-                        """,
+                            script: "curl -s -X POST ${tokenUrl} -H 'Content-Type: application/x-www-form-urlencoded' ${curlBody}",
                             returnStdout: true
                     ).trim()
 
@@ -72,14 +70,21 @@ pipeline {
         stage('Compile & Test') {
             steps {
                 script {
-                    sh '''
+                    // Construimos el comando mvn de forma dinámica para incluir el keycloak.client.secret sólo si existe
+                    def mvnCmd = """mvn -B clean test \\
+                      -Dapi.base.url="${API_BASE_URL}" \\
+                      -Dkeycloak.url="${KEYCLOAK_BASE_URL}" """
+
+                    if (env.KEYCLOAK_CLIENT_SECRET?.trim()) {
+                        mvnCmd += " \\\n  -Dkeycloak.client.secret=\"${env.KEYCLOAK_CLIENT_SECRET}\""
+                    }
+
+                    // Ejecutamos mvn
+                    sh """
                         set -e
                         echo "Ejecutando tests"
-                        mvn -B clean test \
-                          -Dapi.base.url="$API_BASE_URL" \
-                          -Dkeycloak.url="$KEYCLOAK_BASE_URL" \
-                          -Dkeycloak.client.secret="$KEYCLOAK_CLIENT_SECRET"
-                    '''
+                        ${mvnCmd}
+                    """
                 }
             }
         }
