@@ -45,53 +45,51 @@ pipeline {
         stage('Verify services') {
             steps {
                 script {
-                    echo "Verificando servicios..."
+                    echo "Verificando API y Keycloak..."
 
-                    def hosts = [
-                            env.API_BASE_URL,
-                            "http://localhost:8080",
-                            "http://host.docker.internal:8080"
-                    ]
-
-                    def effective = null
-
-                    for (h in hosts) {
-                        echo "Probando: ${h}/actuator/health"
-                        def status = sh(
-                                script: "curl -fsS --max-time 5 ${h}/actuator/health >/dev/null 2>&1",
-                                returnStatus: true
-                        )
-                        if (status == 0) {
-                            effective = h
-                            break
-                        }
+                    // API
+                    def apiOk = sh(script: "curl -fsS --max-time 5 ${EFFECTIVE_API_BASE}/actuator/health >/dev/null 2>&1 || echo 'FAIL'", returnStdout: true).trim()
+                    if (apiOk == 'FAIL') {
+                        error "API no disponible en ${EFFECTIVE_API_BASE}/actuator/health"
                     }
+                    echo "API OK en ${EFFECTIVE_API_BASE}"
 
-                    if (effective == null) {
-                        error "No pude alcanzar la API en ninguno de los hosts probados. Asegúrate que esté arriba."
+                    // Keycloak: intentamos pedir token admin (grant_type=password) para validar que realm+cliente+credenciales están OK
+                    def keycloakTokenUrl = "${env.KEYCLOAK_BASE_URL}/realms/${env.KEYCLOAK_REALM}/protocol/openid-connect/token"
+                    echo "Probando Keycloak token URL: ${keycloakTokenUrl}"
+
+                    // Intento rápido de token (no fallará pipeline si Keycloak no está—capturamos resultado)
+                    def cmd = "curl -s -X POST ${keycloakTokenUrl} -H 'Content-Type: application/x-www-form-urlencoded' " +
+                            "-d 'grant_type=password' -d 'client_id=${env.KEYCLOAK_CLIENT_ID}' -d 'username=${env.ADMIN_USERNAME ?: 'admin'}' -d 'password=${env.ADMIN_PASSWORD ?: 'admin123'}' --max-time 8"
+
+                    def tokenResp = sh(script: cmd + " || true", returnStdout: true).trim()
+                    if (tokenResp == null || tokenResp.isEmpty()) {
+                        echo "WARN: No se obtuvo respuesta desde Keycloak token endpoint (posible caída o red)."
+                    } else if (tokenResp.contains('access_token')) {
+                        echo "Keycloak token endpoint OK (se obtuvo access_token)."
+                    } else {
+                        echo "WARN: Keycloak token endpoint respondió pero no produjo token. Body: ${tokenResp.take(400)}"
                     }
-
-                    echo "API disponible en: ${effective}"
-                    env.EFFECTIVE_API_BASE = effective
                 }
             }
         }
+
 
         stage('Compile & Test') {
             steps {
                 script {
-                    // Pasamos tanto la env var (que TestConfig prioriza) como la system property
                     sh """
-            set -e
-            echo "Ejecutando tests con API_BASE=${EFFECTIVE_API_BASE}"
-            mvn -B clean test \\
-              -Dapi.base.url='${EFFECTIVE_API_BASE}' \
-              -Dkeycloak.url='${KEYCLOAK_BASE_URL}' \
-              -Dskip.integration.tests=true
-          """
+                        set -e
+                        echo "Ejecutando tests con API_BASE=${EFFECTIVE_API_BASE}"
+                        mvn -B clean test \
+                          -Dapi.base.url="${EFFECTIVE_API_BASE}" \
+                          -Dkeycloak.url="${KEYCLOAK_BASE_URL}" \
+                          -Dskip.integration.tests=true
+                      """
                 }
             }
         }
+
 
         stage('Publish reports') {
             steps {

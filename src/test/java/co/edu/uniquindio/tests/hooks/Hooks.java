@@ -23,6 +23,18 @@ public class Hooks {
 
     @Before
     public void beforeScenario(Scenario scenario) {
+        log.info("CONFIG RESUELTA:");
+        log.info(" - apiBaseUrl = {}", config.getApiBaseUrl());
+        log.info(" - keycloakUrl = {}", config.getKeycloakUrl());
+        log.info(" - keycloakTokenUrl = {}", config.getKeycloakTokenUrl());
+        // Intenta obtener token admin sin lanzar (solo loguear)
+        try {
+            String t = tokenClient.getAdminToken();
+            log.info(" - admin token obtenido (longitud): {}", t != null ? t.length() : "null");
+        } catch (Exception e) {
+            log.warn(" - No se pudo obtener token admin en beforeScenario: {}", e.getMessage());
+        }
+
         log.info("=".repeat(80));
         log.info("Iniciando escenario: {}", scenario.getName());
         log.info("Tags: {}", scenario.getSourceTagNames());
