@@ -1,6 +1,7 @@
 package co.edu.uniquindio.tests.hooks;
 
 import co.edu.uniquindio.tests.config.TestConfig;
+import co.edu.uniquindio.tests.support.ScenarioContext;
 import co.edu.uniquindio.tests.support.TokenClient;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
@@ -23,30 +24,25 @@ public class Hooks {
 
     @Before
     public void beforeScenario(Scenario scenario) {
+
         log.info("CONFIG RESUELTA:");
         log.info(" - apiBaseUrl = {}", config.getApiBaseUrl());
         log.info(" - keycloakUrl = {}", config.getKeycloakUrl());
         log.info(" - keycloakTokenUrl = {}", config.getKeycloakTokenUrl());
-        // Intenta obtener token admin sin lanzar (solo loguear)
+
         try {
             String t = tokenClient.getAdminToken();
             log.info(" - admin token obtenido (longitud): {}", t != null ? t.length() : "null");
         } catch (Exception e) {
-            log.warn(" - No se pudo obtener token admin en beforeScenario: {}", e.getMessage());
+            log.warn(" - No se pudo obtener token admin: {}", e.getMessage());
         }
 
-        log.info("=".repeat(80));
-        log.info("Iniciando escenario: {}", scenario.getName());
-        log.info("Tags: {}", scenario.getSourceTagNames());
-        log.info("=".repeat(80));
+        log.info("====== Iniciando escenario: {} ======", scenario.getName());
 
         RestAssured.baseURI = config.getApiBaseUrl();
-        co.edu.uniquindio.tests.support.ScenarioContext.clearAll();
-        RestAssured.enableLoggingOfRequestAndResponseIfValidationFails(LogDetail.ALL);
+        ScenarioContext.clearAll();
 
-        RestAssured.config = RestAssured.config()
-                .logConfig(LogConfig.logConfig()
-                        .enableLoggingOfRequestAndResponseIfValidationFails());
+        RestAssured.enableLoggingOfRequestAndResponseIfValidationFails(LogDetail.ALL);
     }
 
     @After
