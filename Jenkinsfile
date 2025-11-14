@@ -8,7 +8,7 @@ pipeline {
     }
 
     environment {
-        API_BASE_URL        = "http://taller-api:8080"
+        API_BASE_URL        = "http://taller-api-2:8080"
         KEYCLOAK_BASE_URL   = "http://keycloak:8080"
         KEYCLOAK_REALM      = "taller"
         KEYCLOAK_CLIENT_ID  = "taller-api"
