@@ -1,0 +1,11 @@
+# Dockerfile.ci
+FROM maven:3.9.6-eclipse-temurin-17
+
+USER root
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git docker.io ca-certificates jq curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Opcional: crea usuario no-root con uid 1000 si lo prefieres
+USER 1000
+WORKDIR /home/jenkins
