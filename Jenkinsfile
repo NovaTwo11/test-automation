@@ -12,7 +12,7 @@ pipeline {
         KEYCLOAK_BASE_URL   = "http://keycloak:8080"
         KEYCLOAK_REALM      = "taller"
         KEYCLOAK_CLIENT_ID  = "taller-api"
-        KEYCLOAK_CLIENT_SECRET = "jx34gvJ7Vo9UwxLwsbLa1K3C58ZbjLh"
+        KEYCLOAK_CLIENT_SECRET = ""
 
         ADMIN_USERNAME = "admin"
         ADMIN_PASSWORD = "admin123"
