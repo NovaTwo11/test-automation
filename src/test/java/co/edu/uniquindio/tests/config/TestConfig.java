@@ -18,6 +18,7 @@ public class TestConfig {
     private final String keycloakClientSecret;
     private final String adminUsername;
     private final String adminPassword;
+    private final String adminClientId;
 
     private TestConfig() {
         properties = new Properties();
@@ -29,6 +30,7 @@ public class TestConfig {
         this.keycloakClientSecret = getProperty("keycloak.client.secret", "jx34gvJ7Vo9UwxLwsbLa1K3C58ZbjrLh");
         this.adminUsername = getProperty("admin.username", "admin");
         this.adminPassword = getProperty("admin.password", "admin123");
+        this.adminClientId = getProperty("admin.client.id", "admin-cli");
     }
 
     public static TestConfig getInstance() {
@@ -67,27 +69,25 @@ public class TestConfig {
         return properties.getProperty(key, defaultValue);
     }
 
-    /** URL completa del endpoint /token de Keycloak */
     public String getKeycloakTokenUrl() {
         return String.format("%s/realms/%s/protocol/openid-connect/token",
                 keycloakUrl, keycloakRealm);
     }
 
-    /** URL completa del endpoint /userinfo de Keycloak */
+    public String getMasterTokenUrl() {
+        return String.format("%s/realms/master/protocol/openid-connect/token",
+                keycloakUrl);
+    }
+
     public String getKeycloakUserInfoUrl() {
         return String.format("%s/realms/%s/protocol/openid-connect/userinfo",
                 keycloakUrl, keycloakRealm);
     }
 
-    /** (Opcional) URL del endpoint /logout — útil para futuras pruebas */
     public String getKeycloakLogoutUrl() {
         return String.format("%s/realms/%s/protocol/openid-connect/logout",
                 keycloakUrl, keycloakRealm);
     }
-
-    // -------------------------
-    // 🔹 ENDPOINTS DE LA API
-    // -------------------------
 
     public String getUsersEndpoint() {
         return apiBaseUrl + "/api/usuarios";
