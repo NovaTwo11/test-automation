@@ -84,7 +84,7 @@ pipeline {
                     sh """
             set -e
             echo "Ejecutando tests con API_BASE=${EFFECTIVE_API_BASE}"
-            mvn -B -s ci/settings.xml clean test \
+            mvn -B clean test \\
               -Dapi.base.url='${EFFECTIVE_API_BASE}' \
               -Dkeycloak.url='${KEYCLOAK_BASE_URL}' \
               -Dskip.integration.tests=true
