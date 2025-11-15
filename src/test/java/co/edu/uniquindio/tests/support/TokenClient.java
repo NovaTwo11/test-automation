@@ -1,11 +1,14 @@
 package co.edu.uniquindio.tests.support;
 
 import co.edu.uniquindio.tests.config.TestConfig;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import io.restassured.response.Response;
 
 import java.time.Instant;
+import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -18,11 +21,13 @@ public class TokenClient {
     private final TestConfig config;
     private final AuthClient authClient;
     private final ConcurrentMap<String, TokenInfo> tokenCache;
+    private final Gson gson; // 👈 AÑADIDO
 
     private TokenClient() {
         this.config = TestConfig.getInstance();
         this.authClient = AuthClient.getInstance();
         this.tokenCache = new ConcurrentHashMap<>();
+        this.gson = new Gson(); // 👈 AÑADIDO
     }
 
     public static TokenClient getInstance() {
@@ -34,6 +39,26 @@ public class TokenClient {
             }
         }
         return instance;
+    }
+
+    // ⬇️ --- NUEVO MÉTODO --- ⬇️
+    /**
+     * Obtiene el UserID del administrador, forzando un login si no está en caché.
+     */
+    public String getAdminUserId() {
+        // 1. Asegurarse de que el token de admin esté logueado y en caché
+        getAdminToken();
+
+        // 2. Obtener la info de la caché
+        String adminUsername = config.getAdminUsername();
+        TokenInfo tokenInfo = tokenCache.get(adminUsername);
+
+        if (tokenInfo == null || tokenInfo.getUserId() == null) {
+            log.error("No se pudo obtener el UserID del admin desde el token");
+            throw new RuntimeException("Error al extraer UserID del token de admin");
+        }
+
+        return tokenInfo.getUserId();
     }
 
     // Metodo para obtener el token de cualquier usuario
@@ -69,8 +94,10 @@ public class TokenClient {
                     expiresIn = exp;
                 }
 
-                tokenCache.put(cacheKey, new TokenInfo(newToken, expiresIn));
-                log.debug("Nuevo token guardado en caché para {} (expira en {}s)", username, expiresIn);
+                // ⬇️ --- MODIFICADO --- ⬇️
+                String userId = parseUserIdFromToken(newToken);
+                tokenCache.put(cacheKey, new TokenInfo(newToken, expiresIn, userId));
+                log.debug("Nuevo token guardado en caché para {} (UserID: {}, expira en {}s)", username, userId, expiresIn);
                 return newToken;
             } else {
                 log.warn("No se obtuvo token (status {}). Body: {}", response.statusCode(), response.getBody().asString());
@@ -104,21 +131,13 @@ public class TokenClient {
 
         try {
             // =================================================================
-            // ⬇️⬇️⬇️ INICIO DE LA CORRECCIÓN ⬇️⬇️⬇️
+            // ⬇️⬇️⬇️ CORRECCIÓN APLICADA ⬇️⬇️⬇️
             // =================================================================
-
-            // Usamos el método que ya sabemos que funciona (el de login normal)
-            // Llama al AuthClient con:
-            // 1. admin/admin123
-            // 2. URL del realm 'taller'
-            // 3. Client ID 'taller-api'
-            // 4. Client Secret de 'taller-api'
             Response response = authClient.requestTokenResponse(
                     config.getAdminUsername(),
                     config.getAdminPassword()
             );
-
-            // =================================================================
+// =================================================================
             // ⬆️⬆️⬆️ FIN DE LA CORRECCIÓN ⬆️⬆️⬆️
             // =================================================================
 
@@ -130,8 +149,10 @@ public class TokenClient {
                     expiresIn = exp;
                 }
 
-                tokenCache.put(cacheKey, new TokenInfo(newToken, expiresIn));
-                log.debug("Nuevo token de ADMIN guardado en caché (expira en {}s)", expiresIn);
+                // ⬇️ --- MODIFICADO --- ⬇️
+                String userId = parseUserIdFromToken(newToken);
+                tokenCache.put(cacheKey, new TokenInfo(newToken, expiresIn, userId));
+                log.debug("Nuevo token de ADMIN guardado en caché (UserID: {}, expira en {}s)", userId, expiresIn);
                 return newToken;
             } else {
                 log.error("¡FALLO CRÍTICO! No se pudo obtener el token de administrador.");
@@ -162,14 +183,42 @@ public class TokenClient {
         log.debug("Caché de tokens limpiada");
     }
 
+    // ⬇️ --- NUEVO MÉTODO --- ⬇️
+    /**
+     * Decodifica el payload de un JWT para extraer el "sub" (Subject),
+     * que es el UserID.
+     */
+    private String parseUserIdFromToken(String jwt) {
+        if (jwt == null || jwt.isEmpty()) return null;
+        try {
+            String[] parts = jwt.split("\\.");
+            if (parts.length < 2) return null;
+
+            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
+            JsonObject jsonPayload = gson.fromJson(payload, JsonObject.class);
+
+            if (jsonPayload.has("sub")) {
+                return jsonPayload.get("sub").getAsString();
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("Error al decodificar JWT para extraer 'sub': {}", e.getMessage());
+            return null;
+        }
+    }
+
+
     @Getter
     private static class TokenInfo {
         private final String accessToken;
         private final Instant expirationTime;
+        private final String userId; // 👈 AÑADIDO
         private static final int EXPIRATION_BUFFER_SECONDS = 30;
 
-        public TokenInfo(String accessToken, int expiresInSeconds) {
+        // ⬇️ --- MODIFICADO --- ⬇️
+        public TokenInfo(String accessToken, int expiresInSeconds, String userId) {
             this.accessToken = accessToken;
+            this.userId = userId; // 👈 AÑADIDO
             long effectiveExpiresIn = Math.max(expiresInSeconds - EXPIRATION_BUFFER_SECONDS, 1);
             this.expirationTime = Instant.now().plusSeconds(effectiveExpiresIn);
         }

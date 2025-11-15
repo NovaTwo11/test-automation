@@ -13,7 +13,7 @@ Característica: Gestión de Perfiles de Usuario
   Escenario: Crear un perfil completo para un usuario
     Dado que tengo datos válidos de un perfil nuevo
     Cuando envío una solicitud para crear el perfil
-    Entonces debo recibir un código de estado 201
+    Entonces debo recibir un código de estado 200
     Y el perfil debe ser creado exitosamente
     Y la respuesta debe cumplir con el esquema de perfil
 

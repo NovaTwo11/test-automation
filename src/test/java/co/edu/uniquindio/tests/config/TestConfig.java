@@ -94,7 +94,12 @@ public class TestConfig {
     }
 
     public String getProfilesEndpoint() {
+        // ⬇️ --- MODIFICACIÓN --- ⬇️
+        // Ahora apuntamos al API Gateway (apiBaseUrl), no al servicio de Go.
+        // El Gateway se encargará de enrutar a "http://profile-service-go:8081"
+        // y de inyectar el header X-User-ID.
         return apiBaseUrl + "/api/perfiles";
+        // ⬆️ --- FIN DE LA MODIFICACIÓN --- ⬆️
     }
 
     public String getPasswordEndpoint() {

@@ -42,6 +42,10 @@ public class ApiClient {
                 .header("Authorization", "Bearer " + token);
     }
 
+    // ⬇️ --- MODIFICACIÓN --- ⬇️
+    // ELIMINADO el método profileRequest(String userId)
+    // ⬆️ --- FIN DE LA MODIFICACIÓN --- ⬆️
+
     public RequestSpecification adminRequest() {
         String adminToken = tokenClient.getAdminToken();
         return authenticatedRequest(adminToken);
@@ -120,4 +124,9 @@ public class ApiClient {
                 .log().all()
                 .extract().response();
     }
+
+    // ⬇️ --- MODIFICACIÓN --- ⬇️
+    // ELIMINADOS los métodos getProfile(String endpoint, String userId)
+    // y putProfile(String endpoint, Object body, String userId)
+    // ⬆️ --- FIN DE LA MODIFICACIÓN --- ⬆️
 }
